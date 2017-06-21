@@ -283,6 +283,8 @@ class PointTool(QgsMapToolEmitPoint):
     canvasDoubleClicked = pyqtSignal(object, object)
 
     def __init__(self, canvas,layer,iface,dockwidget):
+        QApplication.restoreOverrideCursor()
+        QApplication.setOverrideCursor(Qt.CrossCursor)
         QgsMapToolEmitPoint.__init__(self, canvas)
         self.layer = layer
         self.start = None
@@ -301,6 +303,7 @@ class PointTool(QgsMapToolEmitPoint):
         self.points = []
         self.double = False
         self.dockwidget = dockwidget
+        self.linetype = "Line"
 
     def canvasDoubleClickEvent(self, event):
         self.double = True
@@ -333,13 +336,15 @@ class PointTool(QgsMapToolEmitPoint):
         if not self.dockwidget.checkBoxTrace.isChecked():
             self.points.append((x,y))
             path = [self.points[-2],self.points[-1]]
-            update_segment(path, self.layer_v)
+            update_segment(path, self.layer_v, self.linetype)
             self.iface.mapCanvas().refresh()
             QApplication.restoreOverrideCursor()
+            QApplication.setOverrideCursor(Qt.CrossCursor)
             return
 
         cvalue = self.layer.dataProvider().identify(QgsPoint(x, y), QgsRaster.IdentifyFormatValue).results()
         self.cval = [cvalue[1], cvalue[2],cvalue[3]]
+        if self.cval[0] == None or self.cval[1] == None or self.cval[2] == None: return
 
         self.points.append((x,y))
 
@@ -347,6 +352,7 @@ class PointTool(QgsMapToolEmitPoint):
             source_crs = self.layer.crs()
             self.layer_v = add_segment(source_crs, linetype = self.linetype)
             QApplication.restoreOverrideCursor()
+            QApplication.setOverrideCursor(Qt.CrossCursor)
             return
 
         QApplication.setOverrideCursor(Qt.WaitCursor)
@@ -368,64 +374,64 @@ class PointTool(QgsMapToolEmitPoint):
         end_ind = get_indxs_from_raster_coords(self.geo_ref, self.end[0],self.end[1])
 
 
-        ##k = np.median(raster)
-        size=100
-        im = raster[i-size:i+size,j-size:j+size]
+        ###k = np.median(raster)
+        #size=100
+        #im = raster[i-size:i+size,j-size:j+size]
 
-        r = self.sample[0][i-size:i+size,j-size:j+size]
-        g = self.sample[1][i-size:i+size,j-size:j+size]
-        b = self.sample[2][i-size:i+size,j-size:j+size]
-        h,s,v = rgb_to_hsv(r,g,b)
-        h_, s_, v_ = rgb_to_hsv_single(self.cval[0],self.cval[1],self.cval[2])
-        im2 = (h-h_)**2 + (s-s_)**2 + ((v-v_)/255)**2
-        im3 = (v_-v)**2
-        im4 = (h_-h)**2
-        print (h.max(), s.max(), v.max())
+        #r = self.sample[0][i-size:i+size,j-size:j+size]
+        #g = self.sample[1][i-size:i+size,j-size:j+size]
+        #b = self.sample[2][i-size:i+size,j-size:j+size]
+        #h,s,v = rgb_to_hsv(r,g,b)
+        #h_, s_, v_ = rgb_to_hsv_single(self.cval[0],self.cval[1],self.cval[2])
+        #im2 = (h-h_)**2 + (s-s_)**2 + ((v-v_)/255)**2
+        #im3 = (v_-v)**2
+        #im4 = (h_-h)**2
+        #print (h.max(), s.max(), v.max())
 
-        sx = ndimage.sobel(im, axis=0, mode='constant')
-        sy = ndimage.sobel(im, axis=1, mode='constant')
-        sob = np.hypot(sx, sy)
-        #h,s,v = self.sample_hsv
-        #h = h [i-size:i+size,j-size:j+size]
-        #s = s [i-size:i+size,j-size:j+size]
-        #v = v [i-size:i+size,j-size:j+size]
-        plt.subplot(231)
-        plt.imshow(im,interpolation='None',cmap='gray_r')
-        #plt.scatter(size+1,size+1)
-        plt.subplot(232)
-        #k = np.percentile(raster,25)
-        #im2 = np.zeros_like(im)
-        #im2[im>k] = 1
-        ##plt.imshow(im2,interpolation='None',cmap='gray')
-        plt.imshow(im2,interpolation='None',cmap='gray_r')
+        #sx = ndimage.sobel(im, axis=0, mode='constant')
+        #sy = ndimage.sobel(im, axis=1, mode='constant')
+        #sob = np.hypot(sx, sy)
+        ##h,s,v = self.sample_hsv
+        ##h = h [i-size:i+size,j-size:j+size]
+        ##s = s [i-size:i+size,j-size:j+size]
+        ##v = v [i-size:i+size,j-size:j+size]
+        #plt.subplot(231)
+        #plt.imshow(im,interpolation='None',cmap='gray_r')
+        ##plt.scatter(size+1,size+1)
+        #plt.subplot(232)
+        ##k = np.percentile(raster,25)
+        ##im2 = np.zeros_like(im)
+        ##im2[im>k] = 1
+        ###plt.imshow(im2,interpolation='None',cmap='gray')
+        #plt.imshow(im2,interpolation='None',cmap='gray_r')
 
-        plt.subplot(233)
-        plt.imshow(sob,interpolation='None',cmap='gray_r')
+        #plt.subplot(233)
+        #plt.imshow(sob,interpolation='None',cmap='gray_r')
 
-        plt.subplot(234)
-        #k = np.percentile(raster,50)
-        #im2 = np.zeros_like(im)
-        #im2[im>k] = 1
-        ##plt.imshow(im2,interpolation='None',cmap='gray')
-        plt.imshow(h,interpolation='None',cmap='gray_r')
-        plt.subplot(235)
-        #k = np.percentile(raster,75)
-        #im2 = np.zeros_like(im)
-        #im2[im>k] = 1
-        ##plt.imshow(im2,interpolation='None',cmap='gray')
-        plt.imshow(s,interpolation='None',cmap='gray_r')
-        plt.subplot(236)
-        plt.imshow(v,interpolation='None',cmap='gray_r')
-        plt.show()
+        #plt.subplot(234)
+        ##k = np.percentile(raster,50)
+        ##im2 = np.zeros_like(im)
+        ##im2[im>k] = 1
+        ###plt.imshow(im2,interpolation='None',cmap='gray')
+        #plt.imshow(h,interpolation='None',cmap='gray_r')
+        #plt.subplot(235)
+        ##k = np.percentile(raster,75)
+        ##im2 = np.zeros_like(im)
+        ##im2[im>k] = 1
+        ###plt.imshow(im2,interpolation='None',cmap='gray')
+        ##plt.imshow(s,interpolation='None',cmap='gray_r')
+        ##plt.subplot(236)
+        ##plt.imshow(v,interpolation='None',cmap='gray_r')
+        ##plt.show()
 
-        #print raster.min(), np.percentile(raster,25), np.percentile(raster,50), np.percentile(raster,75), raster.max()
-        #k = np.percentile(raster,75)
-        #raster2 = np.zeros_like(raster)
-        #raster2[raster>k] = 1
-        #plt.imshow(raster2, interpolation='None', cmap='gray')
-        #plt.show()
-        #QApplication.restoreOverrideCursor()
-        #return
+        ##print raster.min(), np.percentile(raster,25), np.percentile(raster,50), np.percentile(raster,75), raster.max()
+        ##k = np.percentile(raster,75)
+        ##raster2 = np.zeros_like(raster)
+        ##raster2[raster>k] = 1
+        ##plt.imshow(raster2, interpolation='None', cmap='gray')
+        ##plt.show()
+        ##QApplication.restoreOverrideCursor()
+        ##return
 
 
 
@@ -441,6 +447,7 @@ class PointTool(QgsMapToolEmitPoint):
             if len(self.points)<2: return
             self.points.pop()
             QApplication.restoreOverrideCursor()
+            QApplication.setOverrideCursor(Qt.CrossCursor)
             return
 
 
@@ -456,6 +463,7 @@ class PointTool(QgsMapToolEmitPoint):
             if len(self.points)<2: return
             self.points.pop()
             QApplication.restoreOverrideCursor()
+            QApplication.setOverrideCursor(Qt.CrossCursor)
             return
         path.insert(0,start_ind)
         path = smooth(path,size=5)
@@ -464,9 +472,10 @@ class PointTool(QgsMapToolEmitPoint):
         time5 = timeit.default_timer()
         path2 = [(get_coords_from_raster_indxs(self.geo_ref, i,j)) for i,j in path]
 
-        update_segment(path2, self.layer_v, self.linetype)
+        update_segment(path2, self.layer_v, linetype = self.linetype)
         self.iface.mapCanvas().refresh()
         QApplication.restoreOverrideCursor()
+        QApplication.setOverrideCursor(Qt.CrossCursor)
         del raster
         gc.collect()
 
