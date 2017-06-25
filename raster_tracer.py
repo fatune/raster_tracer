@@ -21,7 +21,7 @@
  ***************************************************************************/
 """
 from PyQt4.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, Qt, pyqtSignal
-from PyQt4.QtGui import QAction, QIcon, QApplication
+from PyQt4.QtGui import QAction, QIcon, QApplication, QMessageBox, QShortcut, QKeySequence
 
 from qgis.core import *
 from qgis.gui import *
@@ -274,6 +274,7 @@ class raster_tracer:
         self.line_types = ["Line","Polygon"]
         self.dockwidget.comboBoxLinePoly.addItems(self.line_types)
 
+
         #layer_index = self.dockwidget.comboBox.currentIndex()
         #self.map_canvas = self.iface.mapCanvas()
         #self.tool_identify2 = PointTool(self.map_canvas, self.layers_list[layer_index],self.iface)
@@ -282,28 +283,51 @@ class raster_tracer:
 class PointTool(QgsMapToolEmitPoint):
     canvasDoubleClicked = pyqtSignal(object, object)
 
+    def fesq(self):
+        self.esq = True
+        print "esq"
+
     def __init__(self, canvas,layer,iface,dockwidget):
+
+
         QApplication.restoreOverrideCursor()
-        QApplication.setOverrideCursor(Qt.CrossCursor)
+        #QApplication.setOverrideCursor(Qt.CrossCursor)
         QgsMapToolEmitPoint.__init__(self, canvas)
         self.layer = layer
         self.start = None
         self.end = None
         self.ends = []
+
         sample, geo_ref = get_whole_raster(self.layer)
-        self.sample = sample
-        r = self.sample[0]
-        g = self.sample[1]
-        b = self.sample[2]
+        r = sample[0]
+        g = sample[1]
+        b = sample[2]
+        where_are_NaNs = np.isnan(r)
+        r[where_are_NaNs] = 0
+        where_are_NaNs = np.isnan(g)
+        g[where_are_NaNs] = 0
+        where_are_NaNs = np.isnan(b)
+        b[where_are_NaNs] = 0
+        
+        self.sample = (r,g,b)
+
         h,s,v = rgb2hsv(r,g,b)
         self.sample_hsv = h,s,v
+
         self.geo_ref = geo_ref
+
         self.iface=iface
         self.layer_v = None
         self.points = []
         self.double = False
         self.dockwidget = dockwidget
         self.linetype = "Line"
+
+        shortcut = QShortcut(QKeySequence(Qt.Key_Escape), self.iface.mainWindow())
+        shortcut.setContext(Qt.ApplicationShortcut)
+        shortcut.activated.connect(self.fesq)
+
+        self.esq = False
 
     def canvasDoubleClickEvent(self, event):
         self.double = True
@@ -339,12 +363,31 @@ class PointTool(QgsMapToolEmitPoint):
             update_segment(path, self.layer_v, self.linetype)
             self.iface.mapCanvas().refresh()
             QApplication.restoreOverrideCursor()
-            QApplication.setOverrideCursor(Qt.CrossCursor)
+            #QApplication.setOverrideCursor(Qt.CrossCursor)
             return
 
         cvalue = self.layer.dataProvider().identify(QgsPoint(x, y), QgsRaster.IdentifyFormatValue).results()
         self.cval = [cvalue[1], cvalue[2],cvalue[3]]
-        if self.cval[0] == None or self.cval[1] == None or self.cval[2] == None: return
+        #plt.subplot(221)
+        #plt.imshow(self.sample[0])
+        #plt.scatter(j,i)
+        #plt.subplot(222)
+        #plt.imshow(self.sample[1])
+        #plt.scatter(j,i)
+        #plt.subplot(223)
+        #plt.imshow(self.sample[2])
+        #plt.scatter(j,i)
+        #plt.show()
+
+
+        if self.cval[0] == None or self.cval[1] == None or self.cval[2] == None: 
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Information)
+            msg.setText("Wrong raster has been choosen.")
+            msg.exec_()
+
+            QApplication.restoreOverrideCursor()
+            return
 
         self.points.append((x,y))
 
@@ -352,7 +395,11 @@ class PointTool(QgsMapToolEmitPoint):
             source_crs = self.layer.crs()
             self.layer_v = add_segment(source_crs, linetype = self.linetype)
             QApplication.restoreOverrideCursor()
-            QApplication.setOverrideCursor(Qt.CrossCursor)
+            #QApplication.setOverrideCursor(Qt.CrossCursor)
+            return
+
+        if self.esq:
+            self.esq = False
             return
 
         QApplication.setOverrideCursor(Qt.WaitCursor)
@@ -447,7 +494,7 @@ class PointTool(QgsMapToolEmitPoint):
             if len(self.points)<2: return
             self.points.pop()
             QApplication.restoreOverrideCursor()
-            QApplication.setOverrideCursor(Qt.CrossCursor)
+            #QApplication.setOverrideCursor(Qt.CrossCursor)
             return
 
 
@@ -457,13 +504,17 @@ class PointTool(QgsMapToolEmitPoint):
         #plt.scatter(end_ind[1], end_ind[0])
         #plt.show()
         print "h2"
+        #plt.imshow(cost_so_far, cmap = "gray_r", interpolation='None')
+        #plt.scatter(start_ind[1],start_ind[0])
+        #plt.scatter(end_ind[1],end_ind[0])
+        #plt.show()
         time4 = timeit.default_timer()
         path = restore_path(cost_so_far,end_ind, start_ind, self.geo_ref)
         if not path:
             if len(self.points)<2: return
             self.points.pop()
             QApplication.restoreOverrideCursor()
-            QApplication.setOverrideCursor(Qt.CrossCursor)
+            #QApplication.setOverrideCursor(Qt.CrossCursor)
             return
         path.insert(0,start_ind)
         path = smooth(path,size=5)
@@ -475,7 +526,7 @@ class PointTool(QgsMapToolEmitPoint):
         update_segment(path2, self.layer_v, linetype = self.linetype)
         self.iface.mapCanvas().refresh()
         QApplication.restoreOverrideCursor()
-        QApplication.setOverrideCursor(Qt.CrossCursor)
+        #QApplication.setOverrideCursor(Qt.CrossCursor)
         del raster
         gc.collect()
 
@@ -651,6 +702,7 @@ def rgb2hsv(r, g, b):
     mx = np.maximum(np.maximum(r, g), b)
     mn = np.minimum(np.minimum(r, g), b)
     df = mx-mn
+    df[df==0] = 0.000001
     h = np.zeros_like(r)
     s = np.zeros_like(r)
     v = np.zeros_like(r)
@@ -658,7 +710,7 @@ def rgb2hsv(r, g, b):
     h[mx==g] = (60 * ((b[mx==g]-r[mx==g])/df[mx==g]) + 120) % 360
     h[mx==b] = (60 * ((r[mx==b]-g[mx==b])/df[mx==b]) + 240) % 360
     h[mx==mn] = 0
-    s = df/mx
+    s[mx!=0] = df[mx!=0]/mx[mx!=0]
     s[mx==0] = 0
     v = mx
 
