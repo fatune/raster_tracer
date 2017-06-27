@@ -328,9 +328,10 @@ class PointTool(QgsMapToolEmitPoint):
         shortcut.activated.connect(self.fesq)
 
         self.esq = False
+        self.layer_v = iface.activeLayer()
 
     def canvasDoubleClickEvent(self, event):
-        self.double = True
+        self.double = False
     
 
     def canvasReleaseEvent(self, mouseEvent):
@@ -392,8 +393,8 @@ class PointTool(QgsMapToolEmitPoint):
         self.points.append((x,y))
 
         if len(self.points)<2:
-            source_crs = self.layer.crs()
-            self.layer_v = add_segment(source_crs, linetype = self.linetype)
+            #source_crs = self.layer.crs()
+            #self.layer_v = add_segment(source_crs, linetype = self.linetype)
             QApplication.restoreOverrideCursor()
             #QApplication.setOverrideCursor(Qt.CrossCursor)
             return
